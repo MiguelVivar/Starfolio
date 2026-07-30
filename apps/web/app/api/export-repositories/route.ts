@@ -35,19 +35,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "MISSING_TOKEN",
-          message:
-            "The server has no GITHUB_TOKEN configured. Set it in .env.local (see .env.example) and restart the server.",
-        },
-      },
-      { status: 500 },
-    );
-  }
+  const token = process.env.GITHUB_TOKEN?.trim() || undefined;
 
   try {
     const repositories = await exportRepositories(parsed.data.username, { token });
