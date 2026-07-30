@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://starfolio.visox.tech/"><img src="https://img.shields.io/badge/Live%20Demo-starfolio.visox.tech-FF9900.svg?style=for-the-badge&logo=vercel" alt="Live Demo"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/MiguelVivar/Starfolio/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-amber.svg?style=flat-square" alt="License MIT"></a>
   <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-15-black.svg?style=flat-square&logo=next.js" alt="Next.js 15"></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5-blue.svg?style=flat-square&logo=typescript" alt="TypeScript 5"></a>
