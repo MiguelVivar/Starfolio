@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Search, Users } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -12,13 +12,20 @@ export interface UsernameFormValues {
 
 export interface UsernameFormProps {
   readonly isLoading: boolean;
+  readonly initialUsername?: string | undefined;
   readonly onSubmit: (values: UsernameFormValues) => void;
 }
 
-export function UsernameForm({ isLoading, onSubmit }: UsernameFormProps) {
-  const [username, setUsername] = useState("");
+export function UsernameForm({ isLoading, initialUsername, onSubmit }: UsernameFormProps) {
+  const [username, setUsername] = useState(initialUsername || "");
   const [secondaryUsername, setSecondaryUsername] = useState("");
   const [compareMode, setCompareMode] = useState(false);
+
+  useEffect(() => {
+    if (initialUsername) {
+      setUsername(initialUsername);
+    }
+  }, [initialUsername]);
 
   return (
     <form
