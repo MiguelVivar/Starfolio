@@ -8,10 +8,25 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, BookOpen, CheckSquare, Filter, Search, Star, Square } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  BookOpen,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Filter,
+  Search,
+  Square,
+  Star,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { ReadmeModal } from "./readme-modal";
 import { Badge } from "./ui/badge";
@@ -199,7 +214,7 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
             type="button"
             onClick={() => setActiveModalRepo(row.original)}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground bg-surface hover:bg-surface/80 px-2 py-1 rounded border border-border transition-colors"
-            title="Read README"
+            title="Read formatted README"
           >
             <BookOpen className="h-3 w-3 text-accent" /> Readme
           </button>
@@ -218,6 +233,12 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 25,
+      },
+    },
     globalFilterFn: (row, _columnId, filterValue: string) => {
       const repo = row.original;
       const haystack = `${repo.fullName} ${repo.description ?? ""} ${repo.topics.join(" ")}`.toLowerCase();
@@ -338,15 +359,77 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
         </TableBody>
       </Table>
 
-      <div className="flex justify-between items-center text-xs text-muted-foreground font-mono">
-        <p>
-          Showing {rows.length} of {repositories.length} starred repositories.
-        </p>
-        {selectedIds.size > 0 ? (
-          <p className="text-accent font-semibold">
-            {selectedIds.size} repository{selectedIds.size > 1 ? "ies" : ""} selected for export
+      {/* Pagination Controls & Counts */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground font-mono pt-2 border-t border-border/40">
+        <div className="flex items-center gap-3">
+          <p>
+            Showing {rows.length} of {filteredData.length} filtered ({repositories.length} total) repos.
           </p>
-        ) : null}
+          {selectedIds.size > 0 ? (
+            <p className="text-accent font-semibold border-l border-border/60 pl-3">
+              {selectedIds.size} selected
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span>Per page:</span>
+            <select
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none"
+            >
+              {[10, 25, 50, 100].map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="px-2 text-foreground/80 font-medium">
+              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+            </span>
+            <button
+              type="button"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
+              title="First page"
+            >
+              <ChevronsLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
+              title="Previous page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
+              title="Next page"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
+              title="Last page"
+            >
+              <ChevronsRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* README Modal */}
