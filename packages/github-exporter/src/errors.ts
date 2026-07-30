@@ -1,5 +1,4 @@
 export type ExporterErrorCode =
-  | "MISSING_TOKEN"
   | "INVALID_USERNAME"
   | "USER_NOT_FOUND"
   | "AUTH_FAILED"

@@ -4,14 +4,13 @@ import { normalizeRestRepository } from "./normalize";
 
 export interface FetchRestStarredOptions {
   readonly login: string;
-  readonly token?: string | undefined;
   readonly onProgress?: ((fetched: number, total: number) => void) | undefined;
 }
 
 export async function fetchRestStarredRepositories(
   options: FetchRestStarredOptions,
 ): Promise<Repository[]> {
-  const { login, token, onProgress } = options;
+  const { login, onProgress } = options;
   const repositories: Repository[] = [];
   let page = 1;
   const perPage = 100;
@@ -23,10 +22,6 @@ export async function fetchRestStarredRepositories(
       "User-Agent": "Starfolio-Exporter/1.0",
       Accept: "application/vnd.github.v3+json, application/vnd.github.star+json",
     };
-
-    if (token) {
-      headers["Authorization"] = `bearer ${token}`;
-    }
 
     let response: Response;
     try {
@@ -44,7 +39,7 @@ export async function fetchRestStarredRepositories(
     }
 
     if (response.status === 401) {
-      throw new ExporterError("AUTH_FAILED", "GitHub rejected the request credentials.");
+      throw new ExporterError("AUTH_FAILED", "GitHub rejected the request.");
     }
 
     if (response.status === 403 || response.status === 429) {
@@ -54,9 +49,7 @@ export async function fetchRestStarredRepositories(
         : "a while";
       throw new ExporterError(
         "RATE_LIMITED",
-        `GitHub API rate limit reached (resets at ${resetAt}). ${
-          token ? "" : "You can set a GITHUB_TOKEN on the server for 5,000 req/hr."
-        }`.trim(),
+        `GitHub API rate limit reached (resets at ${resetAt}). Please try again later.`,
       );
     }
 

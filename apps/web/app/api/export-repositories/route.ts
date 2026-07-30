@@ -3,11 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 /**
- * The only place this app talks to GitHub. Runs server-side so no GitHub-specific logic
- * leaks into client code — all of that lives in @starfolio/github-exporter. The GitHub
- * token is a server-side secret (GITHUB_TOKEN env var), not something each visitor
- * supplies: GitHub's GraphQL API requires a token for every request, but there's no
- * reason to make every visitor create one just to try the tool.
+ * Server-side API endpoint for exporting GitHub starred repositories.
+ * All GitHub fetching logic lives in @starfolio/github-exporter and runs
+ * without requiring any tokens or user credentials.
  */
 
 const requestSchema = z.object({
@@ -15,7 +13,6 @@ const requestSchema = z.object({
 });
 
 const ERROR_STATUS: Record<string, number> = {
-  MISSING_TOKEN: 500,
   INVALID_USERNAME: 400,
   USER_NOT_FOUND: 404,
   AUTH_FAILED: 401,
@@ -35,10 +32,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = process.env.GITHUB_TOKEN?.trim() || undefined;
-
   try {
-    const repositories = await exportRepositories(parsed.data.username, { token });
+    const repositories = await exportRepositories(parsed.data.username);
     return NextResponse.json({ repositories });
   } catch (error) {
     if (isExporterError(error)) {

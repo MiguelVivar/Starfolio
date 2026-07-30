@@ -5,19 +5,9 @@ fast, searchable table, then export to Excel, CSV, JSON, or Markdown.
 
 Starfolio's GitHub-fetching logic lives in a standalone, fully-typed package
 (`packages/github-exporter`) with a single entry point,
-`exportRepositories(username, { token })`. The web app is a thin UI on top of
+`exportRepositories(username)`. The web app is a thin UI on top of
 it — the package itself is designed to be reused by a future CLI, API, or SaaS
 without modification.
-
-## Why a token is required
-
-GitHub's GraphQL API (unlike its REST API) has **no unauthenticated path** —
-every request must carry a token. Rather than asking every visitor to create
-one, Starfolio reads a single token from the server environment
-(`GITHUB_TOKEN`) — set it once when you run or deploy the app; visitors only
-ever type a username. [Create a token](https://github.com/settings/tokens/new?description=Starfolio&scopes=public_repo)
-with `public_repo` (read) scope — it takes about ten seconds. All visitors of
-one deployment share that token's 5,000 req/hr limit.
 
 ## Monorepo layout
 
@@ -27,7 +17,7 @@ apps/
 packages/
   types/                 Repository domain model, zero runtime deps
   utils/                 Pure formatting helpers (counts, sizes, dates)
-  github-exporter/       All GitHub logic: GraphQL, pagination, rate limits, normalization
+  github-exporter/       All GitHub logic: REST API fetching, rate limits, normalization
   exporters/             Format writers: CSV, JSON, Markdown, Excel (provider-agnostic)
 ```
 
@@ -45,7 +35,6 @@ Requires Node 20+ and [pnpm](https://pnpm.io).
 
 ```bash
 pnpm install
-cp apps/web/.env.example apps/web/.env.local   # then paste a real GITHUB_TOKEN into it
 pnpm dev        # apps/web on http://localhost:3000
 ```
 
