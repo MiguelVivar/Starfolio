@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens sourced from /DESIGN.md ("The Star Ledger"). Restrained strategy:
+ * near-monochrome neutral ramp + one warm accent (star-gold) reserved for the
+ * primary action, star counts, selection, and focus. Both themes are first-class;
+ * neither is a default — see :root vs .dark below.
+ */
+:root {
+  --background: oklch(99% 0 0);
+  --surface: oklch(97% 0.002 250);
+  --surface-hover: oklch(94% 0.003 250);
+  --border: oklch(90% 0.003 250);
+  --foreground: oklch(12% 0.004 250);
+  --muted-foreground: oklch(45% 0.004 250);
+  --accent: oklch(78% 0.15 75);
+  --accent-deep: oklch(62% 0.16 70);
+  --accent-foreground: oklch(12% 0.004 250);
+  --danger: oklch(58% 0.21 27);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+}
+
+.dark {
+  --background: oklch(12% 0.004 250);
+  --surface: oklch(17% 0.004 250);
+  --surface-hover: oklch(22% 0.004 250);
+  --border: oklch(26% 0.004 250);
+  --foreground: oklch(97% 0.002 250);
+  --muted-foreground: oklch(68% 0.006 250);
+  --accent: oklch(78% 0.15 75);
+  --accent-deep: oklch(85% 0.14 78);
+  --accent-foreground: oklch(12% 0.004 250);
+  --danger: oklch(70% 0.19 27);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-danger: var(--danger);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+
+  --font-sans:
+    var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+* {
+  border-color: var(--border);
+}

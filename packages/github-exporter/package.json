@@ -1,0 +1,25 @@
+{
+  "name": "@starfolio/github-exporter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub GraphQL client: fetches, paginates, and normalizes a user's starred repositories.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@octokit/graphql": "^8.2.0",
+    "@octokit/request-error": "^6.1.8",
+    "@starfolio/types": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  }
+}
