@@ -1,0 +1,33 @@
+import type { SVGProps } from "react";
+
+export function Logo({ className = "h-7 w-7", ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <defs>
+        <linearGradient id="starfolio-grad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#F59E0B" />
+          <stop offset="0.5" stopColor="#F97316" />
+          <stop offset="1" stopColor="#EC4899" />
+        </linearGradient>
+        <linearGradient id="starfolio-spark" x1="16" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFFFFF" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#FDE68A" stopOpacity="0.8" />
+        </linearGradient>
+        <filter id="starfolio-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+      
+      <rect x="2" y="2" width="28" height="28" rx="7" fill="url(#starfolio-grad)" />
+      <path d="M7 11H25M7 16H25M7 21H18" stroke="#FFFFFF" strokeOpacity="0.25" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M16 6L18.5 12L25 12.8L20 17.2L21.5 23.5L16 20.2L10.5 23.5L12 17.2L7 12.8L13.5 12L16 6Z" fill="url(#starfolio-spark)" filter="url(#starfolio-glow)" />
+    </svg>
+  );
+}

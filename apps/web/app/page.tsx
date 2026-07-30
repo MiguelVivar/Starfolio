@@ -1,8 +1,9 @@
 "use client";
 
 import type { Repository } from "@starfolio/types";
-import { AlertTriangle, Star } from "lucide-react";
 import { useState } from "react";
+import { AlertTriangle } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { ExportMenu } from "@/components/export-menu";
 import { RepositoryTable } from "@/components/repository-table";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -50,9 +51,9 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <header className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Star className="h-5 w-5 fill-accent text-accent" />
-          <h1 className="text-xl font-semibold tracking-tight">Starfolio</h1>
+        <div className="flex items-center gap-3">
+          <Logo className="h-8 w-8 shrink-0 rounded-lg shadow-sm transition-transform hover:scale-105" />
+          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 bg-clip-text text-transparent">Starfolio</h1>
         </div>
         <ThemeToggle />
       </header>
