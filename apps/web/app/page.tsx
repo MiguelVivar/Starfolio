@@ -1,10 +1,11 @@
 "use client";
 
 import type { Repository } from "@starfolio/types";
-import { useState } from "react";
-import { AlertTriangle } from "lucide-react";
-import { Logo } from "@/components/logo";
+import { AlertTriangle, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AnalyticsDashboard } from "@/components/analytics-dashboard";
 import { ExportMenu } from "@/components/export-menu";
+import { Logo } from "@/components/logo";
 import { RepositoryTable } from "@/components/repository-table";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UsernameForm, type UsernameFormValues } from "@/components/username-form";
@@ -13,68 +14,144 @@ type ExportState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "success"; username: string; repositories: Repository[] };
+  | { status: "success"; username: string; repositories: Repository[]; isComparison?: boolean };
 
 interface ApiErrorBody {
   readonly error: { readonly code: string; readonly message: string };
 }
 
+const STORAGE_KEY = "starfolio_cached_session";
+
 export default function HomePage() {
   const [state, setState] = useState<ExportState>({ status: "idle" });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  async function handleSubmit({ username }: UsernameFormValues) {
+  // Load cached session on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached && cached.username && Array.isArray(cached.repositories)) {
+          setState({
+            status: "success",
+            username: cached.username,
+            repositories: cached.repositories,
+            isComparison: Boolean(cached.isComparison),
+          });
+        }
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+  }, []);
+
+  async function fetchUserStars(username: string): Promise<Repository[]> {
+    const response = await fetch("/api/export-repositories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+
+    const body = (await response.json()) as { repositories?: Repository[] } & Partial<ApiErrorBody>;
+    if (!response.ok || !body.repositories) {
+      throw new Error(body.error?.message ?? `Failed to fetch stars for "${username}".`);
+    }
+    return body.repositories;
+  }
+
+  async function handleSubmit({ username, secondaryUsername }: UsernameFormValues) {
     setState({ status: "loading" });
+    setSelectedIds(new Set());
 
     try {
-      const response = await fetch("/api/export-repositories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
-      });
+      if (secondaryUsername && secondaryUsername.trim().length > 0) {
+        // Comparison mode
+        const [repos1, repos2] = await Promise.all([
+          fetchUserStars(username),
+          fetchUserStars(secondaryUsername.trim()),
+        ]);
 
-      const body = (await response.json()) as { repositories?: Repository[] } & Partial<ApiErrorBody>;
+        const set2 = new Set(repos2.map((r) => r.fullName));
+        const sharedRepos = repos1.filter((r) => set2.has(r.fullName));
 
-      if (!response.ok || !body.repositories) {
-        setState({
-          status: "error",
-          message: body.error?.message ?? "Something went wrong fetching starred repositories.",
-        });
-        return;
+        const comparisonName = `${username} & ${secondaryUsername.trim()}`;
+        const newState: ExportState = {
+          status: "success",
+          username: comparisonName,
+          repositories: sharedRepos,
+          isComparison: true,
+        };
+
+        setState(newState);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+        } catch {
+          // Ignore storage write errors
+        }
+      } else {
+        // Single user mode
+        const repositories = await fetchUserStars(username);
+        const newState: ExportState = { status: "success", username, repositories };
+        setState(newState);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+        } catch {
+          // Ignore storage write errors
+        }
       }
-
-      setState({ status: "success", username, repositories: body.repositories });
-    } catch {
-      setState({ status: "error", message: "Could not reach the server. Check your connection and try again." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not reach the server. Check your connection and try again.";
+      setState({ status: "error", message: msg });
     }
   }
+
+  function handleClearCache() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
+    setState({ status: "idle" });
+    setSelectedIds(new Set());
+  }
+
+  const exportRepos =
+    state.status === "success"
+      ? selectedIds.size > 0
+        ? state.repositories.filter((r) => selectedIds.has(r.id))
+        : state.repositories
+      : [];
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Logo className="h-8 w-8 shrink-0 rounded-lg shadow-sm transition-transform hover:scale-105" />
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 bg-clip-text text-transparent">Starfolio</h1>
+          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 bg-clip-text text-transparent">
+            Starfolio
+          </h1>
         </div>
         <ThemeToggle />
       </header>
 
       <p className="max-w-2xl text-sm text-muted-foreground">
-        Enter any public GitHub username to fetch every repository they&apos;ve starred, then export the
-        list to Excel, CSV, JSON, or Markdown.
+        Enter any public GitHub username to fetch every repository they&apos;ve starred, analyze portfolio insights, and export to Excel, CSV, JSON, or Markdown.
       </p>
 
       <UsernameForm isLoading={state.status === "loading"} onSubmit={handleSubmit} />
 
       {state.status === "error" ? (
-        <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger animate-in fade-in">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>{state.message}</p>
         </div>
       ) : null}
 
       {state.status === "loading" ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 6 }).map((_, index) => (
+        <div className="flex flex-col gap-3">
+          <div className="h-32 animate-pulse rounded-xl bg-surface" />
+          {Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="h-12 animate-pulse rounded-md bg-surface" />
           ))}
         </div>
@@ -82,19 +159,48 @@ export default function HomePage() {
 
       {state.status === "success" ? (
         state.repositories.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
-            {state.username} hasn&apos;t starred any public repositories yet.
-          </p>
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-surface px-4 py-12 text-center text-sm text-muted-foreground">
+            <Sparkles className="h-8 w-8 text-accent/60" />
+            <p>
+              {state.isComparison
+                ? `No shared starred repositories were found between ${state.username}.`
+                : `${state.username} hasn't starred any public repositories yet.`}
+            </p>
+          </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                <span className="font-mono text-foreground">{state.repositories.length}</span> starred
-                repositories for <span className="font-mono text-foreground">{state.username}</span>
-              </p>
-              <ExportMenu repositories={state.repositories} username={state.username} />
+          <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+            {/* Analytics Dashboard */}
+            <AnalyticsDashboard repositories={state.repositories} />
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-mono text-foreground font-semibold">{state.repositories.length}</span>{" "}
+                  {state.isComparison ? "shared starred repositories" : "starred repositories"} for{" "}
+                  <span className="font-mono text-foreground font-semibold">{state.username}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={handleClearCache}
+                  className="text-xs text-muted-foreground hover:text-danger p-1 transition-colors"
+                  title="Clear saved session"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <ExportMenu
+                repositories={exportRepos}
+                username={state.username}
+                selectedCount={selectedIds.size}
+              />
             </div>
-            <RepositoryTable repositories={state.repositories} />
+
+            <RepositoryTable
+              repositories={state.repositories}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+            />
           </div>
         )
       ) : null}

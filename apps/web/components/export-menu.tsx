@@ -13,9 +13,24 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
   { format: "xlsx", label: "Excel" },
 ];
 
-export function ExportMenu({ repositories, username }: { repositories: Repository[]; username: string }) {
+export function ExportMenu({
+  repositories,
+  username,
+  selectedCount,
+}: {
+  repositories: Repository[];
+  username: string;
+  selectedCount?: number;
+}) {
+  const isFilteredExport = typeof selectedCount === "number" && selectedCount > 0 && selectedCount < repositories.length;
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      {isFilteredExport ? (
+        <span className="text-xs font-mono bg-accent/10 text-accent border border-accent/20 px-2 py-1 rounded">
+          Exporting {selectedCount} selected
+        </span>
+      ) : null}
       {FORMATS.map(({ format, label }) => (
         <Button
           key={format}
