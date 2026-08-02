@@ -47,7 +47,9 @@ const validRepo: Repository = {
 describe("Zod domain schemas validation", () => {
   it("validates provider enum schema", () => {
     expect(providerSchema.safeParse("github").success).toBe(true);
-    expect(providerSchema.safeParse("gitlab").success).toBe(false);
+    expect(providerSchema.safeParse("gitlab").success).toBe(true);
+    expect(providerSchema.safeParse("bitbucket").success).toBe(true);
+    expect(providerSchema.safeParse("unknown").success).toBe(false);
   });
 
   it("validates visibility enum schema", () => {
@@ -86,7 +88,7 @@ describe("Zod domain schemas validation", () => {
   });
 
   it("rejects repository model with invalid provider", () => {
-    const invalidRepo = { ...validRepo, provider: "bitbucket" };
+    const invalidRepo = { ...validRepo, provider: "invalid" as any };
     const result = repositorySchema.safeParse(invalidRepo);
     expect(result.success).toBe(false);
   });
