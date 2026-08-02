@@ -1,8 +1,13 @@
+import { z } from "zod";
+
 /** Source-control provider a Repository was fetched from. Only "github" is implemented today;
  * the literal union exists so a future gitlab/bitbucket exporter shares this same type. */
 export type Provider = "github";
 
 export type Visibility = "public" | "private";
+
+export const providerSchema = z.literal("github");
+export const visibilitySchema = z.enum(["public", "private"]);
 
 export interface RepositoryLanguage {
   readonly name: string;
@@ -10,11 +15,22 @@ export interface RepositoryLanguage {
   readonly color: string | null;
 }
 
+export const repositoryLanguageSchema = z.object({
+  name: z.string(),
+  color: z.string().nullable(),
+});
+
 export interface RepositoryLicense {
   readonly key: string;
   readonly name: string;
   readonly spdxId: string | null;
 }
+
+export const repositoryLicenseSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  spdxId: z.string().nullable(),
+});
 
 /**
  * A single starred repository, normalized to a provider-agnostic shape.
@@ -64,3 +80,32 @@ export interface Repository {
    */
   readonly readme: string | null;
 }
+
+export const repositorySchema = z.object({
+  id: z.string(),
+  provider: providerSchema,
+  owner: z.string(),
+  ownerAvatar: z.string(),
+  ownerUrl: z.string(),
+  name: z.string(),
+  fullName: z.string(),
+  description: z.string().nullable(),
+  url: z.string(),
+  homepage: z.string().nullable(),
+  primaryLanguage: repositoryLanguageSchema.nullable(),
+  topics: z.array(z.string()),
+  license: repositoryLicenseSchema.nullable(),
+  stars: z.number().nonnegative(),
+  forks: z.number().nonnegative(),
+  watchers: z.number().nonnegative(),
+  openIssues: z.number().nonnegative(),
+  archived: z.boolean(),
+  fork: z.boolean(),
+  defaultBranch: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  pushedAt: z.string().nullable(),
+  size: z.number().nonnegative(),
+  visibility: visibilitySchema,
+  readme: z.string().nullable(),
+});
