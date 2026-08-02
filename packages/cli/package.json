@@ -1,0 +1,28 @@
+{
+  "name": "@starfolio/cli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone command line interface for Starfolio repository exports.",
+  "type": "module",
+  "bin": {
+    "starfolio": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@starfolio/exporters": "workspace:*",
+    "@starfolio/github-exporter": "workspace:*",
+    "@starfolio/types": "workspace:*",
+    "@starfolio/utils": "workspace:*",
+    "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  }
+}
