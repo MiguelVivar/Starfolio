@@ -1,15 +1,17 @@
-import { exportRepositories, isExporterError } from "@starfolio/github-exporter";
+import { exportRepositories as exportGitHub, isExporterError as isGitHubError } from "@starfolio/github-exporter";
+import { exportGitLabRepositories as exportGitLab } from "@starfolio/gitlab-exporter";
+import { exportBitbucketRepositories as exportBitbucket } from "@starfolio/bitbucket-exporter";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 /**
- * Server-side API endpoint for exporting GitHub starred repositories.
- * Checks for a custom GitHub token passed in the request header `x-github-token`
- * or body `customToken`, and passes it to `@starfolio/github-exporter`.
+ * Server-side API endpoint for exporting starred repositories across multiple providers:
+ * GitHub, GitLab, or Bitbucket.
  */
 
 const requestSchema = z.object({
-  username: z.string().trim().min(1, "A GitHub username is required."),
+  username: z.string().trim().min(1, "A username is required."),
+  provider: z.enum(["github", "gitlab", "bitbucket"]).default("github"),
   customToken: z.string().trim().optional(),
 });
 
@@ -19,11 +21,13 @@ const ERROR_STATUS: Record<string, number> = {
   AUTH_FAILED: 401,
   RATE_LIMITED: 429,
   GITHUB_API_ERROR: 502,
+  GITLAB_API_ERROR: 502,
+  BITBUCKET_API_ERROR: 502,
   NETWORK_ERROR: 502,
 };
 
 export async function POST(request: Request) {
-  const headerToken = request.headers.get("x-github-token")?.trim() || undefined;
+  const headerToken = request.headers.get("x-github-token")?.trim() || request.headers.get("authorization")?.replace("Bearer ", "").trim() || undefined;
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
 
@@ -34,20 +38,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = headerToken || parsed.data.customToken || undefined;
+  const { username, provider, customToken } = parsed.data;
+  const token = headerToken || customToken || undefined;
 
   try {
-    const repositories = await exportRepositories(parsed.data.username, { token });
+    let repositories;
+    if (provider === "gitlab") {
+      repositories = await exportGitLab(username, { token });
+    } else if (provider === "bitbucket") {
+      repositories = await exportBitbucket(username, { token });
+    } else {
+      repositories = await exportGitHub(username, { token });
+    }
+
     return NextResponse.json({ repositories });
-  } catch (error) {
-    if (isExporterError(error)) {
+  } catch (error: unknown) {
+    if (isGitHubError(error)) {
       return NextResponse.json(
         { error: { code: error.code, message: error.message } },
         { status: ERROR_STATUS[error.code] ?? 500 },
       );
     }
+    const err = error instanceof Error ? error.message : "An unexpected error occurred.";
     return NextResponse.json(
-      { error: { code: "UNKNOWN", message: "An unexpected error occurred." } },
+      { error: { code: "UNKNOWN", message: err } },
       { status: 500 },
     );
   }

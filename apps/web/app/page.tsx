@@ -1,6 +1,6 @@
 "use client";
 
-import type { Repository } from "@starfolio/types";
+import type { Provider, Repository } from "@starfolio/types";
 import { AlertTriangle, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnalyticsDashboard } from "@/components/analytics-dashboard";
@@ -15,20 +15,19 @@ type ExportState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "success"; username: string; repositories: Repository[]; isComparison?: boolean };
+  | { status: "success"; username: string; provider: Provider; repositories: Repository[]; isComparison?: boolean };
 
 interface ApiErrorBody {
   readonly error: { readonly code: string; readonly message: string };
 }
 
-const STORAGE_KEY = "starfolio_cached_session_v2";
+const STORAGE_KEY = "starfolio_cached_session_v3";
 const DEFAULT_USER = "MiguelVivar";
 
 export default function HomePage() {
   const [state, setState] = useState<ExportState>({ status: "idle" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Load cached session or auto-fetch default user on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -38,6 +37,7 @@ export default function HomePage() {
           setState({
             status: "success",
             username: cached.username,
+            provider: cached.provider || "github",
             repositories: cached.repositories,
             isComparison: Boolean(cached.isComparison),
           });
@@ -48,11 +48,10 @@ export default function HomePage() {
       // Ignore storage read errors
     }
 
-    // Auto fetch default user if no cache exists
-    handleSubmit({ username: DEFAULT_USER });
+    handleSubmit({ username: DEFAULT_USER, provider: "github" });
   }, []);
 
-  async function fetchUserStars(username: string, customToken?: string): Promise<Repository[]> {
+  async function fetchUserStars(username: string, provider: Provider = "github", customToken?: string): Promise<Repository[]> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (customToken) {
       headers["x-github-token"] = customToken;
@@ -63,6 +62,7 @@ export default function HomePage() {
       headers,
       body: JSON.stringify({
         username,
+        provider,
         ...(customToken ? { customToken } : {}),
       }),
     });
@@ -74,18 +74,17 @@ export default function HomePage() {
     return body.repositories;
   }
 
-  async function handleSubmit({ username, secondaryUsername, customToken }: UsernameFormValues) {
+  async function handleSubmit({ username, provider = "github", secondaryUsername, customToken }: UsernameFormValues) {
     const targetUser = username.trim() || DEFAULT_USER;
     setState({ status: "loading" });
     setSelectedIds(new Set());
 
     try {
       if (secondaryUsername && secondaryUsername.trim().length > 0) {
-        // Comparison mode
         const secondary = secondaryUsername.trim();
         const [repos1, repos2] = await Promise.all([
-          fetchUserStars(targetUser, customToken),
-          fetchUserStars(secondary, customToken),
+          fetchUserStars(targetUser, provider, customToken),
+          fetchUserStars(secondary, provider, customToken),
         ]);
 
         saveRecentSearch(targetUser);
@@ -98,6 +97,7 @@ export default function HomePage() {
         const newState: ExportState = {
           status: "success",
           username: comparisonName,
+          provider,
           repositories: sharedRepos,
           isComparison: true,
         };
@@ -109,11 +109,10 @@ export default function HomePage() {
           // Ignore storage write errors
         }
       } else {
-        // Single user mode
-        const repositories = await fetchUserStars(targetUser, customToken);
+        const repositories = await fetchUserStars(targetUser, provider, customToken);
         saveRecentSearch(targetUser);
 
-        const newState: ExportState = { status: "success", username: targetUser, repositories };
+        const newState: ExportState = { status: "success", username: targetUser, provider, repositories };
         setState(newState);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
@@ -138,6 +137,7 @@ export default function HomePage() {
   }
 
   const currentUsername = state.status === "success" ? state.username : DEFAULT_USER;
+  const currentProvider = state.status === "success" ? state.provider : "github";
 
   const exportRepos =
     state.status === "success"
@@ -159,17 +159,18 @@ export default function HomePage() {
       </header>
 
       <p className="max-w-2xl text-sm text-muted-foreground">
-        Enter any public GitHub username to fetch every repository they&apos;ve starred, analyze portfolio insights, and export to Excel, CSV, JSON, or Markdown.
+        Select your source control provider (GitHub, GitLab, or Bitbucket) and enter any username to fetch starred repositories, analyze portfolio insights, and export to Excel, CSV, JSON, or Markdown.
       </p>
 
       <div className="flex flex-col gap-4">
         <UsernameForm
           isLoading={state.status === "loading"}
           initialUsername={currentUsername}
+          initialProvider={currentProvider}
           onSubmit={handleSubmit}
         />
         <RecentSearches
-          onSelectSearch={(username) => handleSubmit({ username })}
+          onSelectSearch={(username) => handleSubmit({ username, provider: currentProvider })}
           currentUsername={currentUsername}
         />
       </div>
@@ -197,12 +198,11 @@ export default function HomePage() {
             <p>
               {state.isComparison
                 ? `No shared starred repositories were found between ${state.username}.`
-                : `${state.username} hasn't starred any public repositories yet.`}
+                : `${state.username} hasn't starred any public repositories on ${state.provider} yet.`}
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-            {/* Analytics Dashboard */}
             <AnalyticsDashboard repositories={state.repositories} />
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
@@ -210,14 +210,14 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground">
                   <span className="font-mono text-foreground font-semibold">{state.repositories.length}</span>{" "}
                   {state.isComparison ? "shared starred repositories" : "starred repositories"} for{" "}
-                  <span className="font-mono text-foreground font-semibold">{state.username}</span>
+                  <span className="font-mono text-foreground font-semibold">{state.username}</span> ({state.provider})
                 </p>
 
                 <button
                   type="button"
-                  onClick={() => handleSubmit({ username: state.username })}
+                  onClick={() => handleSubmit({ username: state.username, provider: state.provider })}
                   className="text-xs text-muted-foreground hover:text-accent p-1 transition-colors"
-                  title="Refresh from GitHub"
+                  title="Refresh from provider"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
