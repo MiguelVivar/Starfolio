@@ -7,11 +7,11 @@ import {
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import {
   ArrowDown,
   ArrowUp,
@@ -22,33 +22,39 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Filter,
-  Search,
+  GitFork,
+  Layers,
   Square,
   Star,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  AdvancedFilters,
+  DEFAULT_FILTERS,
+  type FilterState,
+  filterRepositories,
+} from "./advanced-filters";
 import { ReadmeModal } from "./readme-modal";
 import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 
 interface RepositoryTableProps {
-  readonly repositories: Repository[];
+  readonly repositories: readonly Repository[];
   readonly selectedIds: Set<string>;
   readonly onSelectionChange: (ids: Set<string>) => void;
 }
 
 export function RepositoryTable({ repositories, selectedIds, onSelectionChange }: RepositoryTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "stars", desc: true }]);
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("ALL");
-  const [selectedLicense, setSelectedLicense] = useState<string>("ALL");
-  const [showOnlyArchived, setShowOnlyArchived] = useState<boolean>(false);
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [activeModalRepo, setActiveModalRepo] = useState<Repository | null>(null);
+  const [pageSizeOption, setPageSizeOption] = useState<number | "all">(50);
 
-  // Extract unique languages & licenses for dropdown filters
-  const languages = useMemo(() => {
+  // Parent scroll container ref for TanStack Virtualizer
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Extract unique languages for multi-select dropdown filter
+  const availableLanguages = useMemo(() => {
     const set = new Set<string>();
     for (const r of repositories) {
       if (r.primaryLanguage?.name) set.add(r.primaryLanguage.name);
@@ -56,32 +62,12 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
     return Array.from(set).sort();
   }, [repositories]);
 
-  const licenses = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of repositories) {
-      const name = r.license?.spdxId || r.license?.name;
-      if (name) set.add(name);
-    }
-    return Array.from(set).sort();
-  }, [repositories]);
-
-  // Apply language, license & archived filters
+  // Filter repositories based on AdvancedFilters criteria
   const filteredData = useMemo(() => {
-    return repositories.filter((repo) => {
-      if (selectedLanguage !== "ALL" && repo.primaryLanguage?.name !== selectedLanguage) {
-        return false;
-      }
-      if (selectedLicense !== "ALL") {
-        const lic = repo.license?.spdxId || repo.license?.name;
-        if (lic !== selectedLicense) return false;
-      }
-      if (showOnlyArchived && !repo.archived) {
-        return false;
-      }
-      return true;
-    });
-  }, [repositories, selectedLanguage, selectedLicense, showOnlyArchived]);
+    return filterRepositories(repositories, filters);
+  }, [repositories, filters]);
 
+  // Define table columns
   const columns = useMemo<ColumnDef<Repository>[]>(
     () => [
       {
@@ -147,7 +133,7 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
           const repo = row.original;
           return (
             <div className="min-w-[15rem] max-w-md">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <a
                   className="font-semibold text-foreground hover:text-accent hover:underline"
                   href={repo.url}
@@ -161,6 +147,11 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
                     Archived
                   </span>
                 ) : null}
+                {repo.fork ? (
+                  <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-mono px-1.5 py-0.5 border border-amber-500/20">
+                    <GitFork className="h-3 w-3" /> Fork
+                  </span>
+                ) : null}
               </div>
               {repo.description ? (
                 <p className="mt-0.5 truncate text-xs text-muted-foreground" title={repo.description}>
@@ -172,6 +163,9 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
                   {repo.topics.slice(0, 4).map((topic) => (
                     <Badge key={topic}>{topic}</Badge>
                   ))}
+                  {repo.topics.length > 4 ? (
+                    <Badge className="opacity-60">+{repo.topics.length - 4}</Badge>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -213,7 +207,7 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
           <button
             type="button"
             onClick={() => setActiveModalRepo(row.original)}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground bg-surface hover:bg-surface/80 px-2 py-1 rounded border border-border transition-colors"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground bg-surface hover:bg-surface-hover px-2 py-1 rounded border border-border transition-colors"
             title="Read formatted README"
           >
             <BookOpen className="h-3 w-3 text-accent" /> Readme
@@ -227,139 +221,139 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
+    state: {
+      sorting,
       pagination: {
-        pageSize: 25,
+        pageIndex: 0,
+        pageSize: pageSizeOption === "all" ? 1000000 : pageSizeOption,
       },
     },
-    globalFilterFn: (row, _columnId, filterValue: string) => {
-      const repo = row.original;
-      const haystack = `${repo.fullName} ${repo.description ?? ""} ${repo.topics.join(" ")}`.toLowerCase();
-      return haystack.includes(filterValue.toLowerCase());
-    },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const rows = table.getRowModel().rows;
+  const isVirtualMode = pageSizeOption === "all" || filteredData.length > 100;
+
+  // TanStack Virtualizer for ultra-smooth rendering of 1,000+ items
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 54, // estimated row height in px
+    overscan: 12,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalVirtualSize = rowVirtualizer.getTotalSize();
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Search & Dropdown Filters Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-surface/30 p-3 rounded-xl border border-border/60">
-        <div className="relative flex-1 min-w-[16rem]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8 text-xs h-9 bg-background"
-            placeholder="Search by name, description, or topic…"
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-          />
-        </div>
+      {/* Advanced Filtering Panel */}
+      <AdvancedFilters
+        filters={filters}
+        onFilterChange={setFilters}
+        availableLanguages={availableLanguages}
+        totalCount={repositories.length}
+        filteredCount={filteredData.length}
+      />
 
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" />
-          </div>
-
-          {/* Language Dropdown */}
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value)}
-            className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            <option value="ALL">All Languages ({languages.length})</option>
-            {languages.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
+      {/* Table Container with Virtual Windowing */}
+      <div
+        ref={tableContainerRef}
+        className="w-full max-h-[620px] overflow-auto rounded-md border border-border bg-background relative scrollbar-thin"
+      >
+        <Table className="relative w-full border-collapse text-sm">
+          <TableHeader className="sticky top-0 z-20 bg-surface shadow-xs border-b border-border">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  const sortDirection = header.column.getIsSorted();
+                  return (
+                    <TableHead key={header.id}>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground disabled:pointer-events-none"
+                        disabled={!header.column.getCanSort()}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3 w-3 text-accent" />
+                          ) : sortDirection === "desc" ? (
+                            <ArrowDown className="h-3 w-3 text-accent" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-40" />
+                          )
+                        ) : null}
+                      </button>
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
             ))}
-          </select>
+          </TableHeader>
 
-          {/* License Dropdown */}
-          <select
-            value={selectedLicense}
-            onChange={(e) => setSelectedLicense(e.target.value)}
-            className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            <option value="ALL">All Licenses ({licenses.length})</option>
-            {licenses.map((lic) => (
-              <option key={lic} value={lic}>
-                {lic}
-              </option>
-            ))}
-          </select>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="py-12 text-center font-sans text-muted-foreground">
+                  No repositories match the active filter criteria. Try expanding your search or resetting filters.
+                </TableCell>
+              </TableRow>
+            ) : isVirtualMode ? (
+              <>
+                {/* Virtual Top Spacer */}
+                {virtualItems[0]?.start ? (
+                  <tr style={{ height: `${virtualItems[0].start}px` }} />
+                ) : null}
 
-          {/* Archived Checkbox */}
-          <label className="flex items-center gap-1.5 cursor-pointer px-2 py-1.5 rounded border border-border bg-background select-none">
-            <input
-              type="checkbox"
-              checked={showOnlyArchived}
-              onChange={(e) => setShowOnlyArchived(e.target.checked)}
-              className="rounded accent-accent h-3.5 w-3.5"
-            />
-            Archived Only
-          </label>
-        </div>
+                {/* Virtual Rows Window */}
+                {virtualItems.map((virtualRow: VirtualItem) => {
+                  const row = rows[virtualRow.index];
+                  if (!row) return null;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      className={selectedIds.has(row.original.id) ? "bg-accent/10" : ""}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })}
+
+                {/* Virtual Bottom Spacer */}
+                {virtualItems.length > 0 ? (
+                  <tr
+                    style={{
+                      height: `${totalVirtualSize - (virtualItems[virtualItems.length - 1]?.end ?? 0)}px`,
+                    }}
+                  />
+                ) : null}
+              </>
+            ) : (
+              /* Non-virtual paginated rows */
+              rows.map((row) => (
+                <TableRow key={row.id} className={selectedIds.has(row.original.id) ? "bg-accent/10" : ""}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                const sortDirection = header.column.getIsSorted();
-                return (
-                  <TableHead key={header.id}>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 hover:text-foreground disabled:pointer-events-none"
-                      disabled={!header.column.getCanSort()}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {header.column.getCanSort() ? (
-                        sortDirection === "asc" ? (
-                          <ArrowUp className="h-3 w-3" />
-                        ) : sortDirection === "desc" ? (
-                          <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )
-                      ) : null}
-                    </button>
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="py-8 text-center font-sans text-muted-foreground">
-                No repositories match the current filter criteria.
-              </TableCell>
-            </TableRow>
-          ) : (
-            rows.map((row) => (
-              <TableRow key={row.id} className={selectedIds.has(row.original.id) ? "bg-accent/5" : ""}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-
-      {/* Pagination Controls & Counts */}
+      {/* Footer / Pagination & Virtual Status Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground font-mono pt-2 border-t border-border/40">
         <div className="flex items-center gap-3">
           <p>
@@ -370,65 +364,82 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
               {selectedIds.size} selected
             </p>
           ) : null}
+          {isVirtualMode ? (
+            <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-[11px] font-mono text-accent">
+              <Layers className="h-3 w-3" /> Virtual Window Active
+            </span>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Mode & Page Size Selector */}
           <div className="flex items-center gap-1.5">
-            <span>Per page:</span>
+            <span>View Mode:</span>
             <select
-              value={table.getState().pagination.pageSize}
-              onChange={(e) => table.setPageSize(Number(e.target.value))}
-              className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none"
+              value={pageSizeOption}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "all") {
+                  setPageSizeOption("all");
+                } else {
+                  const size = Number(val);
+                  setPageSizeOption(size);
+                  table.setPageSize(size);
+                }
+              }}
+              className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
             >
-              {[10, 25, 50, 100].map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize}
-                </option>
-              ))}
+              <option value="25">25 / page</option>
+              <option value="50">50 / page</option>
+              <option value="100">100 / page</option>
+              <option value="all">⚡ All (Virtual Windowed)</option>
             </select>
           </div>
 
-          <div className="flex items-center gap-1">
-            <span className="px-2 text-foreground/80 font-medium">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
-            </span>
-            <button
-              type="button"
-              onClick={() => table.setPageIndex(0)}
-              disabled={!table.getCanPreviousPage()}
-              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
-              title="First page"
-            >
-              <ChevronsLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
-              title="Previous page"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
-              title="Next page"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-              disabled={!table.getCanNextPage()}
-              className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface transition-colors"
-              title="Last page"
-            >
-              <ChevronsRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          {/* Standard Pagination Controls if not in "All" mode */}
+          {pageSizeOption !== "all" ? (
+            <div className="flex items-center gap-1">
+              <span className="px-2 text-foreground/80 font-medium">
+                Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => table.setPageIndex(0)}
+                disabled={!table.getCanPreviousPage()}
+                className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface-hover transition-colors"
+                title="First page"
+              >
+                <ChevronsLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface-hover transition-colors"
+                title="Previous page"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface-hover transition-colors"
+                title="Next page"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                disabled={!table.getCanNextPage()}
+                className="p-1.5 rounded border border-border bg-background disabled:opacity-30 hover:bg-surface-hover transition-colors"
+                title="Last page"
+              >
+                <ChevronsRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
