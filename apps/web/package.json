@@ -11,8 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@starfolio/bitbucket-exporter": "workspace:*",
     "@starfolio/exporters": "workspace:*",
     "@starfolio/github-exporter": "workspace:*",
+    "@starfolio/gitlab-exporter": "workspace:*",
     "@starfolio/types": "workspace:*",
     "@starfolio/utils": "workspace:*",
     "@tanstack/react-table": "^8.20.5",

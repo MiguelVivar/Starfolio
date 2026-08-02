@@ -23,12 +23,18 @@ importers:
 
   apps/web:
     dependencies:
+      '@starfolio/bitbucket-exporter':
+        specifier: workspace:*
+        version: link:../../packages/bitbucket-exporter
       '@starfolio/exporters':
         specifier: workspace:*
         version: link:../../packages/exporters
       '@starfolio/github-exporter':
         specifier: workspace:*
         version: link:../../packages/github-exporter
+      '@starfolio/gitlab-exporter':
+        specifier: workspace:*
+        version: link:../../packages/gitlab-exporter
       '@starfolio/types':
         specifier: workspace:*
         version: link:../../packages/types

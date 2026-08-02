@@ -1,6 +1,6 @@
 "use client";
 
-import type { Repository } from "@starfolio/types";
+import type { Provider, Repository } from "@starfolio/types";
 import { formatCount, formatDate } from "@starfolio/utils";
 import {
   type ColumnDef,
@@ -44,16 +44,20 @@ interface RepositoryTableProps {
   readonly onSelectionChange: (ids: Set<string>) => void;
 }
 
+const PROVIDER_BADGES: Record<Provider, { label: string; className: string }> = {
+  github: { label: "GitHub", className: "bg-slate-500/10 text-foreground border-slate-500/20" },
+  gitlab: { label: "GitLab", className: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
+  bitbucket: { label: "Bitbucket", className: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+};
+
 export function RepositoryTable({ repositories, selectedIds, onSelectionChange }: RepositoryTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "stars", desc: true }]);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [activeModalRepo, setActiveModalRepo] = useState<Repository | null>(null);
   const [pageSizeOption, setPageSizeOption] = useState<number | "all">(50);
 
-  // Parent scroll container ref for TanStack Virtualizer
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // Extract unique languages for multi-select dropdown filter
   const availableLanguages = useMemo(() => {
     const set = new Set<string>();
     for (const r of repositories) {
@@ -62,12 +66,10 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
     return Array.from(set).sort();
   }, [repositories]);
 
-  // Filter repositories based on AdvancedFilters criteria
   const filteredData = useMemo(() => {
     return filterRepositories(repositories, filters);
   }, [repositories, filters]);
 
-  // Define table columns
   const columns = useMemo<ColumnDef<Repository>[]>(
     () => [
       {
@@ -113,6 +115,19 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
             >
               {isSelected ? <CheckSquare className="h-4 w-4 text-accent" /> : <Square className="h-4 w-4 opacity-50" />}
             </button>
+          );
+        },
+      },
+      {
+        accessorKey: "provider",
+        header: "Provider",
+        cell: ({ row }) => {
+          const p = row.original.provider || "github";
+          const badge = PROVIDER_BADGES[p] || PROVIDER_BADGES.github;
+          return (
+            <span className={`inline-flex items-center gap-1 rounded text-[10px] font-mono font-semibold px-2 py-0.5 border ${badge.className}`}>
+              {badge.label}
+            </span>
           );
         },
       },
@@ -237,11 +252,10 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
   const rows = table.getRowModel().rows;
   const isVirtualMode = pageSizeOption === "all" || filteredData.length > 100;
 
-  // TanStack Virtualizer for ultra-smooth rendering of 1,000+ items
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 54, // estimated row height in px
+    estimateSize: () => 54,
     overscan: 12,
   });
 
@@ -250,7 +264,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Advanced Filtering Panel */}
       <AdvancedFilters
         filters={filters}
         onFilterChange={setFilters}
@@ -259,7 +272,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
         filteredCount={filteredData.length}
       />
 
-      {/* Table Container with Virtual Windowing */}
       <div
         ref={tableContainerRef}
         className="w-full max-h-[620px] overflow-auto rounded-md border border-border bg-background relative scrollbar-thin"
@@ -305,12 +317,10 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
               </TableRow>
             ) : isVirtualMode ? (
               <>
-                {/* Virtual Top Spacer */}
                 {virtualItems[0]?.start ? (
                   <tr style={{ height: `${virtualItems[0].start}px` }} />
                 ) : null}
 
-                {/* Virtual Rows Window */}
                 {virtualItems.map((virtualRow: VirtualItem) => {
                   const row = rows[virtualRow.index];
                   if (!row) return null;
@@ -330,7 +340,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
                   );
                 })}
 
-                {/* Virtual Bottom Spacer */}
                 {virtualItems.length > 0 ? (
                   <tr
                     style={{
@@ -340,7 +349,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
                 ) : null}
               </>
             ) : (
-              /* Non-virtual paginated rows */
               rows.map((row) => (
                 <TableRow key={row.id} className={selectedIds.has(row.original.id) ? "bg-accent/10" : ""}>
                   {row.getVisibleCells().map((cell) => (
@@ -353,7 +361,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
         </Table>
       </div>
 
-      {/* Footer / Pagination & Virtual Status Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground font-mono pt-2 border-t border-border/40">
         <div className="flex items-center gap-3">
           <p>
@@ -372,7 +379,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Mode & Page Size Selector */}
           <div className="flex items-center gap-1.5">
             <span>View Mode:</span>
             <select
@@ -396,7 +402,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
             </select>
           </div>
 
-          {/* Standard Pagination Controls if not in "All" mode */}
           {pageSizeOption !== "all" ? (
             <div className="flex items-center gap-1">
               <span className="px-2 text-foreground/80 font-medium">
@@ -443,7 +448,6 @@ export function RepositoryTable({ repositories, selectedIds, onSelectionChange }
         </div>
       </div>
 
-      {/* README Modal */}
       <ReadmeModal repo={activeModalRepo} onClose={() => setActiveModalRepo(null)} />
     </div>
   );
