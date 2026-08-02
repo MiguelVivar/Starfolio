@@ -1,12 +1,11 @@
 import { z } from "zod";
 
-/** Source-control provider a Repository was fetched from. Only "github" is implemented today;
- * the literal union exists so a future gitlab/bitbucket exporter shares this same type. */
-export type Provider = "github";
+/** Source-control provider a Repository was fetched from. */
+export type Provider = "github" | "gitlab" | "bitbucket";
 
 export type Visibility = "public" | "private";
 
-export const providerSchema = z.literal("github");
+export const providerSchema = z.enum(["github", "gitlab", "bitbucket"]);
 export const visibilitySchema = z.enum(["public", "private"]);
 
 export interface RepositoryLanguage {
@@ -37,7 +36,7 @@ export const repositoryLicenseSchema = z.object({
  * This is the contract every exporter (web, future CLI, future SaaS) depends on.
  */
 export interface Repository {
-  /** Stable identifier from the source provider (GitHub's global node id). */
+  /** Stable identifier from the source provider (GitHub's global node id, GitLab project ID, Bitbucket UUID). */
   readonly id: string;
   readonly provider: Provider;
 
