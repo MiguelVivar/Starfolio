@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AnalyticsDashboard } from "@/components/analytics-dashboard";
 import { ExportMenu } from "@/components/export-menu";
 import { Logo } from "@/components/logo";
+import { RecentSearches, saveRecentSearch } from "@/components/recent-searches";
 import { RepositoryTable } from "@/components/repository-table";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UsernameForm, type UsernameFormValues } from "@/components/username-form";
@@ -51,11 +52,19 @@ export default function HomePage() {
     handleSubmit({ username: DEFAULT_USER });
   }, []);
 
-  async function fetchUserStars(username: string): Promise<Repository[]> {
+  async function fetchUserStars(username: string, customToken?: string): Promise<Repository[]> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (customToken) {
+      headers["x-github-token"] = customToken;
+    }
+
     const response = await fetch("/api/export-repositories", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
+      headers,
+      body: JSON.stringify({
+        username,
+        ...(customToken ? { customToken } : {}),
+      }),
     });
 
     const body = (await response.json()) as { repositories?: Repository[] } & Partial<ApiErrorBody>;
@@ -65,7 +74,7 @@ export default function HomePage() {
     return body.repositories;
   }
 
-  async function handleSubmit({ username, secondaryUsername }: UsernameFormValues) {
+  async function handleSubmit({ username, secondaryUsername, customToken }: UsernameFormValues) {
     const targetUser = username.trim() || DEFAULT_USER;
     setState({ status: "loading" });
     setSelectedIds(new Set());
@@ -73,15 +82,19 @@ export default function HomePage() {
     try {
       if (secondaryUsername && secondaryUsername.trim().length > 0) {
         // Comparison mode
+        const secondary = secondaryUsername.trim();
         const [repos1, repos2] = await Promise.all([
-          fetchUserStars(targetUser),
-          fetchUserStars(secondaryUsername.trim()),
+          fetchUserStars(targetUser, customToken),
+          fetchUserStars(secondary, customToken),
         ]);
+
+        saveRecentSearch(targetUser);
+        saveRecentSearch(secondary);
 
         const set2 = new Set(repos2.map((r) => r.fullName));
         const sharedRepos = repos1.filter((r) => set2.has(r.fullName));
 
-        const comparisonName = `${targetUser} & ${secondaryUsername.trim()}`;
+        const comparisonName = `${targetUser} & ${secondary}`;
         const newState: ExportState = {
           status: "success",
           username: comparisonName,
@@ -97,7 +110,9 @@ export default function HomePage() {
         }
       } else {
         // Single user mode
-        const repositories = await fetchUserStars(targetUser);
+        const repositories = await fetchUserStars(targetUser, customToken);
+        saveRecentSearch(targetUser);
+
         const newState: ExportState = { status: "success", username: targetUser, repositories };
         setState(newState);
         try {
@@ -147,11 +162,17 @@ export default function HomePage() {
         Enter any public GitHub username to fetch every repository they&apos;ve starred, analyze portfolio insights, and export to Excel, CSV, JSON, or Markdown.
       </p>
 
-      <UsernameForm
-        isLoading={state.status === "loading"}
-        initialUsername={currentUsername}
-        onSubmit={handleSubmit}
-      />
+      <div className="flex flex-col gap-4">
+        <UsernameForm
+          isLoading={state.status === "loading"}
+          initialUsername={currentUsername}
+          onSubmit={handleSubmit}
+        />
+        <RecentSearches
+          onSelectSearch={(username) => handleSubmit({ username })}
+          currentUsername={currentUsername}
+        />
+      </div>
 
       {state.status === "error" ? (
         <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger animate-in fade-in">

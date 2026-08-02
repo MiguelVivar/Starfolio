@@ -3,14 +3,14 @@ import { ExporterError } from "./errors";
 import { fetchRestStarredRepositories } from "./rest/client";
 
 export interface ExportRepositoriesOptions {
+  readonly token?: string | undefined;
   /** Invoked after each page fetch with the running total, for progress reporting. */
   readonly onProgress?: ((fetched: number, total: number) => void) | undefined;
 }
 
 /**
  * Fetches, paginates, and normalizes every repository a GitHub user has starred.
- * The single entry point this package exposes — the web app, and any future CLI or
- * API surface, depend on this function and nothing else from this package.
+ * Supports optional Personal Access Token (PAT) to bypass unauthenticated rate limits.
  */
 export async function exportRepositories(
   username: string,
@@ -23,7 +23,7 @@ export async function exportRepositories(
 
   return fetchRestStarredRepositories({
     login,
+    token: options?.token,
     onProgress: options?.onProgress,
   });
 }
-
