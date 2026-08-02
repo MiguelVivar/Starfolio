@@ -4,12 +4,13 @@ import { z } from "zod";
 
 /**
  * Server-side API endpoint for exporting GitHub starred repositories.
- * All GitHub fetching logic lives in @starfolio/github-exporter and runs
- * without requiring any tokens or user credentials.
+ * Checks for a custom GitHub token passed in the request header `x-github-token`
+ * or body `customToken`, and passes it to `@starfolio/github-exporter`.
  */
 
 const requestSchema = z.object({
   username: z.string().trim().min(1, "A GitHub username is required."),
+  customToken: z.string().trim().optional(),
 });
 
 const ERROR_STATUS: Record<string, number> = {
@@ -22,6 +23,7 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function POST(request: Request) {
+  const headerToken = request.headers.get("x-github-token")?.trim() || undefined;
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
 
@@ -32,8 +34,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const token = headerToken || parsed.data.customToken || undefined;
+
   try {
-    const repositories = await exportRepositories(parsed.data.username);
+    const repositories = await exportRepositories(parsed.data.username, { token });
     return NextResponse.json({ repositories });
   } catch (error) {
     if (isExporterError(error)) {

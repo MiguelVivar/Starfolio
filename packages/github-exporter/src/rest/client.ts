@@ -4,13 +4,14 @@ import { normalizeRestRepository } from "./normalize";
 
 export interface FetchRestStarredOptions {
   readonly login: string;
+  readonly token?: string | undefined;
   readonly onProgress?: ((fetched: number, total: number) => void) | undefined;
 }
 
 export async function fetchRestStarredRepositories(
   options: FetchRestStarredOptions,
 ): Promise<Repository[]> {
-  const { login, onProgress } = options;
+  const { login, token, onProgress } = options;
   const repositories: Repository[] = [];
   let page = 1;
   const perPage = 100;
@@ -22,6 +23,10 @@ export async function fetchRestStarredRepositories(
       "User-Agent": "Starfolio-Exporter/1.0",
       Accept: "application/vnd.github.v3+json, application/vnd.github.star+json",
     };
+
+    if (token && token.trim().length > 0) {
+      headers["Authorization"] = `Bearer ${token.trim()}`;
+    }
 
     let response: Response;
     try {
