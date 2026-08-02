@@ -1,0 +1,40 @@
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+
+export interface AuthMeResponse {
+  authenticated: boolean;
+  provider?: string | undefined;
+  token?: string | undefined;
+  user?: string | undefined;
+}
+
+export async function GET() {
+  const cookieStore = await cookies();
+  const oauthCookie = cookieStore.get("starfolio_oauth_token");
+
+  if (!oauthCookie || !oauthCookie.value) {
+    return NextResponse.json<AuthMeResponse>({
+      authenticated: false,
+    });
+  }
+
+  try {
+    const parsed = JSON.parse(oauthCookie.value) as {
+      token?: string;
+      provider?: string;
+      user?: string;
+    };
+
+    return NextResponse.json<AuthMeResponse>({
+      authenticated: true,
+      provider: parsed.provider,
+      token: parsed.token,
+      user: parsed.user,
+    });
+  } catch {
+    return NextResponse.json<AuthMeResponse>({
+      authenticated: true,
+      token: oauthCookie.value,
+    });
+  }
+}
