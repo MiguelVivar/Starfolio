@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 export interface AuthMeResponse {
   authenticated: boolean;
   provider?: string | undefined;
-  token?: string | undefined;
   user?: string | undefined;
 }
 
@@ -28,13 +27,23 @@ export async function GET() {
     return NextResponse.json<AuthMeResponse>({
       authenticated: true,
       provider: parsed.provider,
-      token: parsed.token,
       user: parsed.user,
     });
   } catch {
     return NextResponse.json<AuthMeResponse>({
       authenticated: true,
-      token: oauthCookie.value,
     });
   }
+}
+
+export async function DELETE() {
+  const response = NextResponse.json<AuthMeResponse>({ authenticated: false });
+  response.cookies.set("starfolio_oauth_token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+  return response;
 }

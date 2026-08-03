@@ -2,7 +2,7 @@
 
 import type { Provider } from "@starfolio/types";
 import { Check, Github, Key, Loader2, LogOut, Search, Users, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -23,11 +23,10 @@ export interface UsernameFormProps {
   readonly isLoading: boolean;
   readonly initialUsername?: string | undefined;
   readonly initialProvider?: Provider;
-  readonly onSubmit: (values: UsernameFormValues) => void;
+  readonly onSubmit: (values: UsernameFormValues) => void | Promise<void>;
 }
 
 const PAT_STORAGE_KEY = "starfolio_pat_token";
-const OAUTH_STORAGE_KEY = "starfolio_oauth_user";
 
 export function UsernameForm({
   isLoading,
@@ -42,6 +41,7 @@ export function UsernameForm({
   const [patToken, setPatToken] = useState("");
   const [showPatInput, setShowPatInput] = useState(false);
   const [oauthUser, setOauthUser] = useState<OAuthUser | null>(null);
+  const submitLockRef = useRef(false);
 
   useEffect(() => {
     if (initialUsername) {
@@ -54,17 +54,26 @@ export function UsernameForm({
       const storedToken = localStorage.getItem(PAT_STORAGE_KEY) || sessionStorage.getItem(PAT_STORAGE_KEY);
       if (storedToken) setPatToken(storedToken);
 
-      const storedOAuth = localStorage.getItem(OAUTH_STORAGE_KEY);
-      if (storedOAuth) {
-        const parsed = JSON.parse(storedOAuth) as OAuthUser;
-        if (parsed?.username && parsed?.provider) {
-          setOauthUser(parsed);
-        }
-      }
     } catch {
       // Ignore storage read errors
     }
+
+    void fetch("/api/auth/me")
+      .then((response) => response.json())
+      .then((session: { authenticated?: boolean; provider?: Provider; user?: string }) => {
+        if (session.authenticated && session.provider && session.user) {
+          const authenticatedUser = { username: session.user, provider: session.provider };
+          setOauthUser(authenticatedUser);
+          setProvider(session.provider);
+          setUsername(session.user);
+        }
+      })
+      .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) submitLockRef.current = false;
+  }, [isLoading]);
 
   function handleSavePat(token: string) {
     const trimmed = token.trim();
@@ -92,33 +101,12 @@ export function UsernameForm({
   }
 
   function handleOAuthLogin(targetProvider: "github" | "gitlab") {
-    const simulatedUser: OAuthUser = {
-      username: targetProvider === "github" ? "MiguelVivar" : "miguel_vivar",
-      provider: targetProvider,
-    };
-    setOauthUser(simulatedUser);
-    setProvider(targetProvider);
-    setUsername(simulatedUser.username);
-    try {
-      localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(simulatedUser));
-    } catch {
-      // Ignore
-    }
-    onSubmit({
-      username: simulatedUser.username,
-      provider: targetProvider,
-      secondaryUsername: compareMode ? secondaryUsername : undefined,
-      customToken: patToken.trim() || undefined,
-    });
+    window.location.assign(`/api/auth/${targetProvider}`);
   }
 
-  function handleOAuthLogout() {
+  async function handleOAuthLogout() {
+    await fetch("/api/auth/me", { method: "DELETE" }).catch(() => undefined);
     setOauthUser(null);
-    try {
-      localStorage.removeItem(OAUTH_STORAGE_KEY);
-    } catch {
-      // Ignore
-    }
   }
 
   return (
@@ -216,13 +204,17 @@ export function UsernameForm({
         className="flex flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
-          onSubmit({
+          if (isLoading || submitLockRef.current) return;
+
+          submitLockRef.current = true;
+          void onSubmit({
             username,
             provider,
             secondaryUsername: compareMode ? secondaryUsername : undefined,
             customToken: patToken.trim() || undefined,
           });
         }}
+        aria-busy={isLoading}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex-1 text-sm sm:max-w-xs">

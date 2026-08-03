@@ -2,6 +2,7 @@ import { exportRepositories as exportGitHub, isExporterError as isGitHubError } 
 import { exportGitLabRepositories as exportGitLab } from "@starfolio/gitlab-exporter";
 import { exportBitbucketRepositories as exportBitbucket } from "@starfolio/bitbucket-exporter";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
 
 /**
@@ -39,7 +40,18 @@ export async function POST(request: Request) {
   }
 
   const { username, provider, customToken } = parsed.data;
-  const token = headerToken || customToken || undefined;
+  const cookieStore = await cookies();
+  const oauthCookie = cookieStore.get("starfolio_oauth_token")?.value;
+  let sessionToken: string | undefined;
+  if (oauthCookie) {
+    try {
+      const session = JSON.parse(oauthCookie) as { provider?: string; token?: string };
+      if (session.provider === provider) sessionToken = session.token;
+    } catch {
+      // Ignore malformed or legacy session cookies.
+    }
+  }
+  const token = headerToken || customToken || sessionToken;
 
   try {
     let repositories;
